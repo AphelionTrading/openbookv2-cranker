@@ -116,7 +116,7 @@ If you prefer running the script inside a Docker container, you can use the prov
 
 The script relies on several environment variables defined in the `.env` file:
 
-- **CLUSTER**: Cluster to use. Options: `mainnet`, `devnet`. Default is `mainnet`.
+- **CLUSTER**: Cluster to use. Options: `mainnet`, `testnet`, `devnet`. Default is `mainnet`.
 - **RPC_URL**: RPC endpoint URL for the Solana cluster.
 - **WALLET_PATH**: Path to your Solana wallet JSON file.
 - **KEYPAIR**: Private keypair in JSON format. Optional if using `WALLET_PATH`.
