@@ -58,7 +58,7 @@ Before you can run this project, ensure you have the following installed:
 
     ```env
     CLUSTER=mainnet
-    RPC_URL=https://solana-mainnet.core.chainstack.com/your-api-key
+    RPC_URL=https://solana-mainnet.rpc-node.com/your-api-key
     WALLET_PATH=/path/to/your/wallet.json
     KEYPAIR= # Leave this empty if you use wallet.json or enter your private keypair in JSON format
     PROGRAM_ID=opnb2LAfJYbRMAHHvqjCwQxanZn7ReEHp1k81EohpZb
