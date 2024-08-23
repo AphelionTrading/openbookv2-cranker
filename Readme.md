@@ -1,6 +1,6 @@
 # OpenBook V2 Crank Script
 
-![Uploading OBv2 Crank tinified.png…]()
+![OBv2 Crank](https://github.com/user-attachments/assets/2fddad45-20d1-4d74-ba04-6c72c63080b0)
 
 Script for cranking OpenBook V2 markets on Solana.
 
