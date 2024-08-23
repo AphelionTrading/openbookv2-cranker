@@ -14,7 +14,7 @@ This project is a TypeScript-based script for cranking OpenBook V2 markets on So
 ├── tsconfig.json
 ├── wallet.json
 ├── .env
-└── yarn.lock
+└── yarn.lock```
 
 * **src/crank.ts**: The main script for running the crank operations.
 * **package.json**: Contains dependencies and scripts for building and running the project.
