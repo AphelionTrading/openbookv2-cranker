@@ -1,6 +1,6 @@
 # OpenBook V2 Crank Script
 
-This project is a TypeScript-based script for cranking OpenBook V2 markets on Solana.
+Script for cranking OpenBook V2 markets on Solana.
 
 ## Project Structure
 
