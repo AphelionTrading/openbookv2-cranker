@@ -1,5 +1,7 @@
 # OpenBook V2 Crank Script
 
+![Uploading OBv2 Crank tinified.png…]()
+
 Script for cranking OpenBook V2 markets on Solana.
 
 ## Project Structure
