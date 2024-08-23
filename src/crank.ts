@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import * as os from 'os';
 import * as fs from 'fs';
 import {
@@ -11,9 +12,17 @@ import {
   TransactionInstruction,
 } from '@solana/web3.js';
 import BN from 'bn.js';
-import { OpenBookV2Client, sleep } from "@openbook-dex/openbook-v2";
-import { chunk } from '../utils/utils';
+import { MarketAccount, OpenBookV2Client, sleep } from '@openbook-dex/openbook-v2'
 import { AnchorProvider, Wallet } from '@coral-xyz/anchor';
+
+function chunk<T>(array: T[], size: number): T[][] {
+  const chunkedArray: T[][] = [];
+  for (let i = 0; i < array.length; i += size) {
+    chunkedArray.push(array.slice(i, i + size));
+  }
+  return chunkedArray;
+}
+
 
 const {
   RPC_URL,
@@ -32,7 +41,7 @@ const {
   PRIORITY_MARKETS, // input to add comma seperated list of markets that force fee bump
 } = process.env;
 
-const cluster = CLUSTER || 'mainnet';
+const cluster: 'mainnet' | 'testnet' | 'devnet' = CLUSTER as 'mainnet' | 'testnet' | 'devnet' || 'mainnet';
 const interval = parseInt(INTERVAL || '1000');
 const consumeEventsLimit = new BN(CONSUME_EVENTS_LIMIT || '19');
 const priorityMarkets = PRIORITY_MARKETS ? PRIORITY_MARKETS.split(',') : [];
@@ -42,20 +51,24 @@ const priorityCuPrice = parseInt(PRIORITY_CU_PRICE || '100000');
 const CuLimit = parseInt(PRIORITY_CU_LIMIT || '50000');
 const maxTxInstructions = parseInt(MAX_TX_INSTRUCTIONS || '1');
 const programId = new PublicKey(
-    PROGRAM_ID || cluster == 'mainnet'
-        ? 'opnb2LAfJYbRMAHHvqjCwQxanZn7ReEHp1k81EohpZb'
-        : 'opnb2LAfJYbRMAHHvqjCwQxanZn7ReEHp1k81EohpZb',
+  PROGRAM_ID || cluster == 'mainnet'
+    ? 'opnb2LAfJYbRMAHHvqjCwQxanZn7ReEHp1k81EohpZb'
+    : 'opnb2LAfJYbRMAHHvqjCwQxanZn7ReEHp1k81EohpZb',
 );
-const walletFile =
-    WALLET_PATH || os.homedir() + '/.config/solana/devnet.json';
+const walletFile = process.env.WALLET_PATH || os.homedir() + '/openbook-v2/ts/client/src/wallet.json';;
+
+console.log("Loaded MARKETS:", MARKETS);
+console.log("Loaded WALLET_PATH:", WALLET_PATH);
+console.log("Loaded RPC_URL:", RPC_URL);
+
 const payer = Keypair.fromSecretKey(
-    Uint8Array.from(JSON.parse(KEYPAIR || fs.readFileSync(walletFile, 'utf-8'))),
+  Uint8Array.from(JSON.parse(KEYPAIR || fs.readFileSync(walletFile, 'utf-8'))),
 );
 const wallet = new Wallet(payer);
 const defaultRpcUrls = {
-  'mainnet': 'https://api.mainnet-beta.solana.com',
-  'testnet': 'https://api.testnet.solana.com',
-  'devnet': 'https://api.devnet.solana.com',
+    'mainnet': 'https://api.mainnet-beta.solana.com',
+    'testnet': 'https://api.testnet.solana.com',
+    'devnet': 'https://api.devnet.solana.com',
 }
 const rpcUrl = RPC_URL ? RPC_URL : defaultRpcUrls[cluster];
 
@@ -106,7 +119,7 @@ async function run() {
       const eventHeapAccounts = await client.program.account.eventHeap.fetchMultipleAndContext(eventHeapPks);
       const contextSlot = eventHeapAccounts[0]!.context.slot;
       //increase the minContextSlot to avoid processing the same slot twice
-
+      
       if (contextSlot < minContextSlot) {
         console.log(`already processed slot ${contextSlot}, skipping...`)
       }
@@ -118,7 +131,6 @@ async function run() {
         const market = markets[i]!;
         const marketPk = marketPks[i];
         if (heapSize === 0) continue;
-
 
         const remainingAccounts = await client.getAccountsToConsume(market);
         const consumeEventsIx = await client.consumeEventsIx(marketPk, market, consumeEventsLimit, remainingAccounts)
@@ -136,16 +148,16 @@ async function run() {
         }
 
         console.log(
-            `market ${marketPk} creating consume events for ${heapSize} events (${remainingAccounts.length} accounts)`,
+          `market ${marketPk} creating consume events for ${heapSize} events (${remainingAccounts.length} accounts)`,
         );
       }
-
+      
       //send the crank transaction if there are markets that need cranked
       if (crankInstructionsQueue.length > 0) {
         //chunk the instructions to ensure transactions are not too large
         let chunkedCrankInstructions = chunk(
-            crankInstructionsQueue,
-            maxTxInstructions,
+          crankInstructionsQueue,
+          maxTxInstructions,
         );
 
         chunkedCrankInstructions.forEach((transactionInstructions) => {
@@ -153,23 +165,23 @@ async function run() {
           let crankTransaction = new Transaction({ ...recentBlockhash });
 
           crankTransaction.add(
-              ComputeBudgetProgram.setComputeUnitLimit({
-                units: CuLimit * maxTxInstructions,
-              }),
+            ComputeBudgetProgram.setComputeUnitLimit({
+              units: CuLimit * maxTxInstructions,
+            }),
           );
 
           transactionInstructions.forEach(function (crankInstruction) {
             //check the instruction for flag to bump fee
             instructionBumpMap.get(crankInstruction)
-                ? (shouldBumpFee = true)
-                : null;
+              ? (shouldBumpFee = true)
+              : null;
           });
 
           if (shouldBumpFee || cuPrice) {
             crankTransaction.add(
-                ComputeBudgetProgram.setComputeUnitPrice({
-                  microLamports: shouldBumpFee ? priorityCuPrice : cuPrice,
-                }),
+              ComputeBudgetProgram.setComputeUnitPrice({
+                microLamports: shouldBumpFee ? priorityCuPrice : cuPrice,
+              }),
             );
           }
 
@@ -179,15 +191,15 @@ async function run() {
 
           //send the transaction
           connection
-              .sendRawTransaction(crankTransaction.serialize(), {
-                skipPreflight: true,
-                maxRetries: 2,
-              })
-              .then((txId) =>
-                  console.log(
-                      `Cranked ${transactionInstructions.length} market(s): ${txId}`,
-                  ),
-              );
+            .sendRawTransaction(crankTransaction.serialize(), {
+              skipPreflight: true,
+              maxRetries: 2,
+            })
+            .then((txId) =>
+              console.log(
+                `Cranked ${transactionInstructions.length} market(s): ${txId}`,
+              ),
+            );
         });
       }
     } catch (e) {

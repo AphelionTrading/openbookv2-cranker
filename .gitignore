@@ -1,9 +1,2 @@
-node_modules
-lib
+wallet.json
 .env
-
-.idea
-
-.DS_Store
-
-*.log

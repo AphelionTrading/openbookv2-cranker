@@ -1,19 +1,22 @@
 {
-  "extends": "@tsconfig/recommended/tsconfig.json",
-
   "compilerOptions": {
-    "outDir": "./lib",
-    "target": "es6",
-    "lib": ["es2019"],
-    "allowJs": true,
-    "checkJs": true,
-    "declaration": true,
-    "declarationMap": true,
-    "noImplicitAny": false,
-    "resolveJsonModule": true,
-    "sourceMap": true,
-    "esModuleInterop": true
+    "target": "esnext",                     
+    "module": "commonjs",                   
+    "moduleResolution": "node",            
+    "strict": true,                        
+    "esModuleInterop": true,               
+    "resolveJsonModule": true,          
+    "skipLibCheck": true,                  
+    "forceConsistentCasingInFileNames": true,
+    "outDir": "dist",                       
+    "rootDir": "src",                       
+    "sourceMap": true                     
   },
-  "include": ["./src/**/*", "examples/example.ts"],
-  "exclude": ["./src/**/*.test.js", "node_modules", "**/node_modules", "src/scripts/serumExampleHedge.ts"]
+  "include": [
+    "src/**/*.ts"                          
+  ],
+  "exclude": [
+    "node_modules",                        
+    "dist"                                 
+  ]
 }
