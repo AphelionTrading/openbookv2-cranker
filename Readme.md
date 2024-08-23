@@ -38,14 +38,6 @@ Before you can run this project, ensure you have the following installed:
 ## Installation
 
 1. **Clone the repository**:
-   
-   ```bash
-   git clone https://github.com/TheDeFiQuant/obv2-crank-v2.git
-   cd obv2-crank-v2
-
-## Installation
-
-1. **Clone the repository**:
     ```bash
     git clone https://github.com/TheDeFiQuant/obv2-crank-v2.git
     cd obv2-crank-v2
