@@ -1,9 +1,8 @@
-# OpenBook V2 Crank Script
-
 <p align="center">
   <img src="https://github.com/user-attachments/assets/2fddad45-20d1-4d74-ba04-6c72c63080b0" alt="OBv2 Crank" width="600" style="border: 2px solid #000; padding: 10px; margin: 20px; background-color: #fff;"/>
 </p>
 
+# OpenBook V2 Crank Script
 
 Script for cranking OpenBook V2 markets on Solana.
 
