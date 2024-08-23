@@ -1,8 +1,6 @@
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/a96cb52a-38ed-480b-81f3-a114784b8518" alt="OBv2 Crank" width="600" style="border: 2px solid #000; padding: 10px; margin: 20px; background-color: #fff;"/>
+  <img src="https://github.com/user-attachments/assets/61b1a716-61d8-4826-9d2d-f7c4e70563d0" alt="OBv2 Crank" width="600" style="border: 2px solid #000; padding: 10px; margin: 20px; background-color: #fff;"/>
 </p>
-
-
 
 # OpenBook V2 Crank Script
 
