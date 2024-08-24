@@ -94,11 +94,11 @@ Before you can run this project, ensure you have the following installed:
 
 ## Docker Support
 
-If you prefer running the script inside a Docker container, you can use the provided `Dockerfile`.
+If you prefer running the script inside a Docker container, you can pull the image from GHCR.
 
-1. **Build the Docker image**:
+1. **Pull the Docker image from GHCR**:
     ```bash
-    docker build -t obv2-crank-v2 .
+    docker pull ghcr.io/thedefiquant/openbook-cranker-v2:v2.0.1
     ```
 
 2. **Run the Docker container**:
