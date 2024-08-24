@@ -1,7 +1,0 @@
-.env
-wallet.json
-node_modules
-dist
-.git
-.vscode
-.DS_Store
