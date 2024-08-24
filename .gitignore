@@ -1,2 +1,4 @@
 wallet.json
 .env
+Dockerfile
+.dockerignore
