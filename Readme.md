@@ -74,6 +74,27 @@ Before you can run this project, ensure you have the following installed:
     - **KEYPAIR**: (Optional) Enter your private keypair (same format as in wallet.json). Leave this empty if using `wallet.json`.
     - **MARKETS**: Comma-separated list of market IDs to crank.
     - **PRIORITY_MARKETS**: Comma-separated list of market IDs that receive fee bumps.
+  
+## Configuration
+
+### Environment Variables
+
+The script relies on several environment variables defined in the `.env` file:
+
+- **CLUSTER**: Cluster to use. Options: `mainnet`, `testnet`, `devnet`. Default is `mainnet`.
+- **RPC_URL**: RPC endpoint URL for the Solana cluster.
+- **WALLET_PATH**: Path to your Solana wallet JSON file.
+- **KEYPAIR**: Private keypair in JSON format. Optional if using `WALLET_PATH`.
+- **PROGRAM_ID**: Program ID for OpenBook. Default is set for mainnet.
+- **INTERVAL**: Time interval in milliseconds between each loop. Default is `1000 ms`.
+- **CONSUME_EVENTS_LIMIT**: Maximum number of events to consume per transaction. Default is `19`.
+- **MARKETS**: Comma-separated list of market IDs to crank.
+- **PRIORITY_MARKETS**: Market IDs that receive priority fees. Comma-separated.
+- **PRIORITY_QUEUE_LIMIT**: Queue size threshold to apply priority fees. Default is `100`.
+- **PRIORITY_CU_PRICE**: Compute unit price for priority markets. Default is `100000`.
+- **PRIORITY_CU_LIMIT**: Compute unit limit per instruction. Default is `50000`.
+- **MAX_TX_INSTRUCTIONS**: Maximum number of instructions per transaction. Default is `1`.
+- **CU_PRICE**: Minimum additional micro lamports for all transactions. Default is `0`.
 
 ## Usage
 
@@ -105,27 +126,6 @@ If you prefer running the script inside a Docker container, you can pull the ima
     ```bash
     docker run --env-file .env obv2-crank-v2
     ```
-
-## Configuration
-
-### Environment Variables
-
-The script relies on several environment variables defined in the `.env` file:
-
-- **CLUSTER**: Cluster to use. Options: `mainnet`, `testnet`, `devnet`. Default is `mainnet`.
-- **RPC_URL**: RPC endpoint URL for the Solana cluster.
-- **WALLET_PATH**: Path to your Solana wallet JSON file.
-- **KEYPAIR**: Private keypair in JSON format. Optional if using `WALLET_PATH`.
-- **PROGRAM_ID**: Program ID for OpenBook. Default is set for mainnet.
-- **INTERVAL**: Time interval in milliseconds between each loop. Default is `1000 ms`.
-- **CONSUME_EVENTS_LIMIT**: Maximum number of events to consume per transaction. Default is `19`.
-- **MARKETS**: Comma-separated list of market IDs to crank.
-- **PRIORITY_MARKETS**: Market IDs that receive priority fees. Comma-separated.
-- **PRIORITY_QUEUE_LIMIT**: Queue size threshold to apply priority fees. Default is `100`.
-- **PRIORITY_CU_PRICE**: Compute unit price for priority markets. Default is `100000`.
-- **PRIORITY_CU_LIMIT**: Compute unit limit per instruction. Default is `50000`.
-- **MAX_TX_INSTRUCTIONS**: Maximum number of instructions per transaction. Default is `1`.
-- **CU_PRICE**: Minimum additional micro lamports for all transactions. Default is `0`.
 
 ## Contributing
 
