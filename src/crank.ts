@@ -12,7 +12,7 @@ import {
     TransactionInstruction,
 } from '@solana/web3.js';
 import BN from 'bn.js';
-import {OpenBookV2Client, sleep} from '@openbook-dex/openbook-v2'
+import {FillEvent, OpenBookV2Client, OutEvent, sleep} from '@openbook-dex/openbook-v2'
 import {AnchorProvider, Wallet} from '@coral-xyz/anchor';
 
 
@@ -79,13 +79,13 @@ async function run() {
 
     const provider = new AnchorProvider(connection, wallet, {})
     const client = new OpenBookV2Client(provider, programId, {});
+
     const marketPks = MARKETS ? MARKETS.split(',').map((m) => new PublicKey(m)) : [];
     if (!marketPks.length) throw new Error('No valid market pubkeys provided!');
 
     const markets = await client.program.account.market.fetchMultiple(marketPks);
     const eventHeapPks = markets.map((m) => m!.eventHeap);
 
-    //pass a minimum Context Slot to GMA
     let minContextSlot = 0;
 
     while (true) {
@@ -95,13 +95,12 @@ async function run() {
 
             const eventHeapAccounts = await client.program.account.eventHeap.fetchMultipleAndContext(eventHeapPks);
 
-            //increase the minContextSlot to avoid processing the same slot twice
             const contextSlot = eventHeapAccounts[0]!.context.slot;
             if (contextSlot < minContextSlot) {
                 console.log(`already processed slot ${contextSlot}, skipping...`);
                 continue;
             }
-            minContextSlot = contextSlot + 1;
+            minContextSlot = contextSlot + 1;  //increase the minContextSlot to avoid processing the same slot twice
 
             for (let i = 0; i < eventHeapAccounts.length; i++) {
                 const eventHeap = eventHeapAccounts[i]!.data;
@@ -110,7 +109,7 @@ async function run() {
                 const marketPk = marketPks[i];
                 if (heapSize === 0) continue;
 
-                const remainingAccounts = await client.getAccountsToConsume(market);
+                const remainingAccounts = await getAccountsToConsume(client, market);
                 const consumeEventsIx = await client.consumeEventsIx(marketPk, market, consumeEventsLimit, remainingAccounts)
 
                 crankInstructionsQueue.push(consumeEventsIx);
@@ -185,6 +184,35 @@ async function run() {
         }
         await sleep(interval);
     }
+}
+
+//this is a modified version of client.getAccountsToConsume which does deduplication on the accounts returned
+async function getAccountsToConsume(client: OpenBookV2Client, market: any) {
+    let accounts: PublicKey[] = [];
+    const eventHeap = await client.deserializeEventHeapAccount(market.eventHeap);
+    if (eventHeap != null) {
+        for (const node of eventHeap.nodes) {
+            if (node.event.eventType === 0) {
+                const fillEvent: FillEvent = client.program.coder.types.decode(
+                    'FillEvent',
+                    Buffer.from([0, ...node.event.padding]),
+                );
+                accounts = accounts
+                    .filter((a) => a !== fillEvent.maker)
+                    .concat([fillEvent.maker]);
+            } else {
+                const outEvent: OutEvent = client.program.coder.types.decode(
+                    'OutEvent',
+                    Buffer.from([0, ...node.event.padding]),
+                );
+                accounts = accounts
+                    .filter((a) => a !== outEvent.owner)
+                    .concat([outEvent.owner]);
+            }
+        }
+    }
+    const uniqueAccountStrings = new Set(accounts.map(account => account.toString()));
+    return Array.from(uniqueAccountStrings).map(accountString => new PublicKey(accountString));
 }
 
 function chunk<T>(array: T[], size: number): T[][] {
