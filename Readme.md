@@ -121,14 +121,15 @@ The script relies on several environment variables defined in the `.env` file:
 
 If you prefer running the script inside a Docker container, you can pull the image from GHCR.
 
-1. **Pull the Docker image from GHCR**:
-    ```bash
-    docker pull ghcr.io/thedefiquant/openbook-cranker-v2:v2.0.1
+1. **Ensure you have the following files in your current working directory:**:
+   ```bash
+   .env
+   wallet.json
     ```
 
-2. **Run the Docker container**:
+2. **Run the Docker container with the latest image**:
     ```bash
-    docker run --env-file .env obv2-crank-v2
+   docker run --pull=always --env-file .env --rm --name obv2-crank -v ./wallet.json:/app/wallet.json ghcr.io/solpkr1/obv2-crank:latest
     ```
 
 ## Contributing
