@@ -77,16 +77,10 @@ async function run() {
             .catch(e => console.error(`Couldn't get blockhash: ${e}`))
     }, 1000);
 
-    // list of markets to crank
     const provider = new AnchorProvider(connection, wallet, {})
     const client = new OpenBookV2Client(provider, programId, {});
-
     const marketPks = MARKETS ? MARKETS.split(',').map((m) => new PublicKey(m)) : [];
-
-    if (!marketPks.length) {
-        console.error('No valid market pubkeys provided!');
-        return;
-    }
+    if (!marketPks.length) throw new Error('No valid market pubkeys provided!');
 
     const markets = await client.program.account.market.fetchMultiple(marketPks);
     const eventHeapPks = markets.map((m) => m!.eventHeap);
@@ -100,11 +94,12 @@ async function run() {
             let instructionBumpMap = new Map();
 
             const eventHeapAccounts = await client.program.account.eventHeap.fetchMultipleAndContext(eventHeapPks);
-            const contextSlot = eventHeapAccounts[0]!.context.slot;
-            //increase the minContextSlot to avoid processing the same slot twice
 
+            //increase the minContextSlot to avoid processing the same slot twice
+            const contextSlot = eventHeapAccounts[0]!.context.slot;
             if (contextSlot < minContextSlot) {
-                console.log(`already processed slot ${contextSlot}, skipping...`)
+                console.log(`already processed slot ${contextSlot}, skipping...`);
+                continue;
             }
             minContextSlot = contextSlot + 1;
 
@@ -185,17 +180,8 @@ async function run() {
                         );
                 });
             }
-        } catch (e) {
-            if (e instanceof Error) {
-                switch (e.message) {
-                    case 'Minimum context slot has not been reached':
-                        //lightweight warning message for known "safe" errors
-                        console.warn(e.message);
-                        break;
-                    default:
-                        console.error(e);
-                }
-            }
+        } catch (error: any) {
+            console.error(error);
         }
         await sleep(interval);
     }
