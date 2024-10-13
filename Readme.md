@@ -10,22 +10,26 @@ Script for cranking OpenBook V2 markets on Solana.
 
 ```plaintext
 .
-├── Dockerfile
-├── package-lock.json
-├── package.json
+├── dist
+├── node_modules
 ├── src
 │   └── crank.ts
+├── .env
+├── .env.example
+├── package.json
+├── package-lock.json
 ├── tsconfig.json
 ├── wallet.json
-├── .env
 └── yarn.lock
 ```
 
+* **dist**: Contains the transpiled scripts.
 * **src/crank.ts**: The main script for running the crank operations.
+* **.env**: Configuration file for environment variables.
+* **.env.example**: Example .env file.
 * **package.json**: Contains dependencies and scripts for building and running the project.
 * **tsconfig.json**: TypeScript configuration file.
 * **wallet.json**: Contains the wallet keypair used to sign transactions.
-* **.env**: Configuration file for environment variables.
 
 ## Prerequisites
 
