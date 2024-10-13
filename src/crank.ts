@@ -98,6 +98,7 @@ async function run() {
             const contextSlot = eventHeapAccounts[0]!.context.slot;
             if (contextSlot < minContextSlot) {
                 console.log(`already processed slot ${contextSlot}, skipping...`);
+                await sleep(200);
                 continue;
             }
             minContextSlot = contextSlot + 1;  //increase the minContextSlot to avoid processing the same slot twice
