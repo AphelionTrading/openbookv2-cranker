@@ -12,16 +12,8 @@ import {
     TransactionInstruction,
 } from '@solana/web3.js';
 import BN from 'bn.js';
-import {MarketAccount, OpenBookV2Client, sleep} from '@openbook-dex/openbook-v2'
+import {OpenBookV2Client, sleep} from '@openbook-dex/openbook-v2'
 import {AnchorProvider, Wallet} from '@coral-xyz/anchor';
-
-function chunk<T>(array: T[], size: number): T[][] {
-    const chunkedArray: T[][] = [];
-    for (let i = 0; i < array.length; i += size) {
-        chunkedArray.push(array.slice(i, i + size));
-    }
-    return chunkedArray;
-}
 
 
 const {
@@ -55,46 +47,36 @@ const programId = new PublicKey(
         ? 'opnb2LAfJYbRMAHHvqjCwQxanZn7ReEHp1k81EohpZb'
         : 'opnb2LAfJYbRMAHHvqjCwQxanZn7ReEHp1k81EohpZb',
 );
+
 const walletFile = process.env.WALLET_PATH || os.homedir() + '/openbook-v2/ts/client/src/wallet.json';
-;
-
-console.log("Loaded MARKETS:", MARKETS);
-console.log("Loaded WALLET_PATH:", WALLET_PATH);
-console.log("Loaded RPC_URL:", RPC_URL);
-
 const payer = Keypair.fromSecretKey(
     Uint8Array.from(JSON.parse(KEYPAIR || fs.readFileSync(walletFile, 'utf-8'))),
 );
 const wallet = new Wallet(payer);
+
 const defaultRpcUrls = {
     'mainnet': 'https://api.mainnet-beta.solana.com',
     'testnet': 'https://api.testnet.solana.com',
     'devnet': 'https://api.devnet.solana.com',
 }
 const rpcUrl = RPC_URL ? RPC_URL : defaultRpcUrls[cluster];
-
-console.log(payer.publicKey.toString());
-
 const connection = new Connection(rpcUrl, 'processed' as Commitment);
 
-// blockhash loop
-let recentBlockhash: BlockhashWithExpiryBlockHeight;
-try {
-    connection.getLatestBlockhash('finalized').then((blockhash) => {
-        recentBlockhash = blockhash;
-    });
-} catch (e) {
-    console.error(`Couldn't get blockhash: ${e}`);
-}
-setInterval(async () => {
-    try {
-        recentBlockhash = await connection.getLatestBlockhash('finalized');
-    } catch (e) {
-        console.error(`Couldn't get blockhash: ${e}`);
-    }
-}, 1000);
+console.log('Starting OpenBook v2 Cranker');
+console.log("Loaded MARKETS:", MARKETS);
+console.log("Loaded WALLET_PATH:", WALLET_PATH);
+console.log("Loaded RPC_URL:", RPC_URL);
+console.log('Loaded Wallet:', payer.publicKey.toString());
 
 async function run() {
+
+    let recentBlockhash: BlockhashWithExpiryBlockHeight = await connection.getLatestBlockhash('finalized');
+    setInterval(() => {
+        connection.getLatestBlockhash('finalized')
+            .then(hash => recentBlockhash = hash)
+            .catch(e => console.error(`Couldn't get blockhash: ${e}`))
+    }, 1000);
+
     // list of markets to crank
     const provider = new AnchorProvider(connection, wallet, {})
     const client = new OpenBookV2Client(provider, programId, {});
@@ -217,6 +199,14 @@ async function run() {
         }
         await sleep(interval);
     }
+}
+
+function chunk<T>(array: T[], size: number): T[][] {
+    const chunkedArray: T[][] = [];
+    for (let i = 0; i < array.length; i += size) {
+        chunkedArray.push(array.slice(i, i + size));
+    }
+    return chunkedArray;
 }
 
 run();
