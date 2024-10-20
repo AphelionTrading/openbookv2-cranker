@@ -52,7 +52,7 @@ Before you can run this project, ensure you have the following installed:
     yarn install
     ```
 
-3. **Create and configure the `.env` file**:
+3. **Copy .env.example to .env and configure the file**:
 
     The `.env` file should be located in the root directory of your project (where your `package.json` is). Here’s an example of what your `.env` file should look like:
 
@@ -78,6 +78,7 @@ Before you can run this project, ensure you have the following installed:
     - **KEYPAIR**: (Optional) Enter your private keypair (same format as in wallet.json). Leave this empty if using `wallet.json`.
     - **MARKETS**: Comma-separated list of market IDs to crank.
     - **PRIORITY_MARKETS**: Comma-separated list of market IDs that receive fee bumps.
+    - **MIN_EVENTS**: (Optional) Set the threshold for the number of events before cranker will send a TX.
   
 ## Configuration
 

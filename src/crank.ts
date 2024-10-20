@@ -14,6 +14,7 @@ import {
 import BN from 'bn.js';
 import {FillEvent, OpenBookV2Client, OutEvent, sleep} from '@openbook-dex/openbook-v2'
 import {AnchorProvider, Wallet} from '@coral-xyz/anchor';
+import Log from "@solpkr/log";
 
 
 const {
@@ -31,6 +32,7 @@ const {
     MAX_TX_INSTRUCTIONS, // max instructions per transaction
     CU_PRICE, // extra microlamports per cu for any transaction
     PRIORITY_MARKETS, // input to add comma seperated list of markets that force fee bump
+    MIN_EVENTS,
 } = process.env;
 
 const cluster: 'mainnet' | 'testnet' | 'devnet' = CLUSTER as 'mainnet' | 'testnet' | 'devnet' || 'mainnet';
@@ -42,6 +44,7 @@ const cuPrice = parseInt(CU_PRICE || '0');
 const priorityCuPrice = parseInt(PRIORITY_CU_PRICE || '100000');
 const CuLimit = parseInt(PRIORITY_CU_LIMIT || '50000');
 const maxTxInstructions = parseInt(MAX_TX_INSTRUCTIONS || '1');
+const minEvents = parseInt(MIN_EVENTS || '1');
 const programId = new PublicKey(
     PROGRAM_ID || cluster == 'mainnet'
         ? 'opnb2LAfJYbRMAHHvqjCwQxanZn7ReEHp1k81EohpZb'
@@ -62,11 +65,12 @@ const defaultRpcUrls = {
 const rpcUrl = RPC_URL ? RPC_URL : defaultRpcUrls[cluster];
 const connection = new Connection(rpcUrl, 'processed' as Commitment);
 
-console.log('Starting OpenBook v2 Cranker');
-console.log("Loaded MARKETS:", MARKETS);
-console.log("Loaded WALLET_PATH:", WALLET_PATH);
-console.log("Loaded RPC_URL:", RPC_URL);
-console.log('Loaded Wallet:', payer.publicKey.toString());
+Log.info('Starting OpenBook v2 Cranker');
+Log.info(`Loaded MARKETS: ${MARKETS}`);
+Log.info(`Loaded WALLET_PATH: ${WALLET_PATH}`);
+Log.info(`Loaded RPC_URL: ${RPC_URL}`);
+Log.info(`Loaded RPC_URL: ${RPC_URL}`);
+Log.info(`Loaded Wallet: ${payer.publicKey.toString()}`);
 
 async function run() {
 
@@ -74,7 +78,7 @@ async function run() {
     setInterval(() => {
         connection.getLatestBlockhash('finalized')
             .then(hash => recentBlockhash = hash)
-            .catch(e => console.error(`Couldn't get blockhash: ${e}`))
+            .catch(e => Log.error(`Couldn't get blockhash: ${e.message}`))
     }, 1000);
 
     const provider = new AnchorProvider(connection, wallet, {})
@@ -97,7 +101,7 @@ async function run() {
 
             const contextSlot = eventHeapAccounts[0]!.context.slot;
             if (contextSlot < minContextSlot) {
-                console.log(`already processed slot ${contextSlot}, skipping...`);
+                Log.info(`already processed slot ${contextSlot}, skipping...`);
                 await sleep(200);
                 continue;
             }
@@ -106,10 +110,10 @@ async function run() {
             for (let i = 0; i < eventHeapAccounts.length; i++) {
                 const eventHeap = eventHeapAccounts[i]!.data;
                 const heapSize = eventHeap.header.count;
-                const market = markets[i]!;
-                const marketPk = marketPks[i];
-                if (heapSize === 0) continue;
+                if (heapSize < minEvents) continue;
 
+                const market = markets[i]!;
+                const marketPk = marketPks[i]
                 const remainingAccounts = await getAccountsToConsume(client, market);
                 const consumeEventsIx = await client.consumeEventsIx(marketPk, market, consumeEventsLimit, remainingAccounts)
 
@@ -125,7 +129,7 @@ async function run() {
                     instructionBumpMap.set(consumeEventsIx, 1);
                 }
 
-                console.log(
+                Log.info(
                     `market ${marketPk} creating consume events for ${heapSize} events (${remainingAccounts.length} accounts)`,
                 );
             }
@@ -173,15 +177,11 @@ async function run() {
                             skipPreflight: true,
                             maxRetries: 2,
                         })
-                        .then((txId) =>
-                            console.log(
-                                `Cranked ${transactionInstructions.length} market(s): ${txId}`,
-                            ),
-                        );
+                        .then((txId) => Log.info(`Cranked ${transactionInstructions.length} market(s): ${txId}`));
                 });
             }
         } catch (error: any) {
-            console.error(error);
+            Log.error(`${error.stack} \n Error: ${error.message}`);
         }
         await sleep(interval);
     }
