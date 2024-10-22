@@ -37,13 +37,13 @@ const DEFAULTS = {
 
 const RPC_URL: string = config('RPC_URL');
 const WALLET_PATH: string = config('WALLET_PATH');
-const KEYPAIR: string = args.get('KEYPAIR', fs.readFileSync(WALLET_PATH, 'utf-8')); //TODO
+const KEYPAIR: string = getKeyPair(WALLET_PATH);
 const MARKETS: string = config('MARKETS');
 const PRIORITY_MARKETS: string = config('PRIORITY_MARKETS');
 const MAX_TX_INSTRUCTIONS: number = parseInt(config('MAX_TX_INSTRUCTIONS'))
 const MIN_EVENTS: number = parseInt(config('MIN_EVENTS'));
 const PRIORITY_QUEUE_LIMIT: number = parseInt(config('PRIORITY_QUEUE_LIMIT'));
-const PRIORITY_CU_PRICE: number = parseInt(args.get('PRIORITY_CU_PRICE', DEFAULTS.PRIORITY_CU_PRICE))
+const PRIORITY_CU_PRICE: number = parseInt(config('PRIORITY_CU_PRICE'));
 const INTERVAL: number = parseInt(config('INTERVAL'));
 const CU_PRICE: number = parseInt(config('CU_PRICE'));
 const PRIORITY_CU_LIMIT: number = parseInt(config('PRIORITY_CU_LIMIT'));
@@ -56,8 +56,8 @@ async function run() {
     const connection = new Connection(RPC_URL, 'processed' as Commitment);
     const wallet = new Wallet(Keypair.fromSecretKey(Uint8Array.from(JSON.parse(KEYPAIR))));
 
-    Log.info('Starting OpenBook v2 Cranker');
     if (DEBUG) Log.info('DEBUG ENABLED');
+    Log.info('Starting OpenBook v2 Cranker');
     Log.info(`Loaded MARKETS: ${MARKETS}`);
     Log.info(`Loaded WALLET_PATH: ${WALLET_PATH}`);
     Log.info(`Loaded RPC_URL: ${RPC_URL}`);
@@ -217,6 +217,11 @@ function chunk<T>(array: T[], size: number): T[][] {
 //return value from .env or --args=123 or return the default value
 function config(key: string) {
     return args.get(key, DEFAULTS[key])
+}
+
+function getKeyPair(walletPath: string) {
+    const keypair = args.get('KEYPAIR', false);
+    return keypair ? keypair : fs.readFileSync(walletPath, 'utf-8');
 }
 
 run();
