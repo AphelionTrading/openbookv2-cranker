@@ -1,5 +1,4 @@
 import 'dotenv/config';
-import * as os from 'os';
 import * as fs from 'fs';
 import {
     Keypair,
@@ -15,64 +14,55 @@ import BN from 'bn.js';
 import {FillEvent, OpenBookV2Client, OutEvent, sleep} from '@openbook-dex/openbook-v2'
 import {AnchorProvider, Wallet} from '@coral-xyz/anchor';
 import Log from "@solpkr/log";
+import Args from "@solpkr/args";
 
+const args = Args.load();
 
-const {
-    RPC_URL,
-    WALLET_PATH,
-    KEYPAIR,
-    PROGRAM_ID,
-    INTERVAL,
-    CONSUME_EVENTS_LIMIT,
-    CLUSTER,
-    MARKETS, // comma separated list of market pubkeys to crank
-    PRIORITY_QUEUE_LIMIT, // queue length at which to apply the priority fee
-    PRIORITY_CU_PRICE, // extra microlamports per cu for high fee markets
-    PRIORITY_CU_LIMIT, // compute limit
-    MAX_TX_INSTRUCTIONS, // max instructions per transaction
-    CU_PRICE, // extra microlamports per cu for any transaction
-    PRIORITY_MARKETS, // input to add comma seperated list of markets that force fee bump
-    MIN_EVENTS,
-} = process.env;
+const DEFAULTS = {
+    INTERVAL: 1000,
+    WALLET_PATH: '~/openbook-v2/ts/client/src/wallet.json',
+    RPC_URL: 'https://api.mainnet-beta.solana.com',
+    CONSUME_EVENTS_LIMIT: 19,
+    MARKETS: 'AFgkED1FUVfBe2trPUDqSqK9QKd4stJrfzq5q1RwAFTa',
+    PRIORITY_MARKETS: '',
+    PROGRAM_ID: 'opnb2LAfJYbRMAHHvqjCwQxanZn7ReEHp1k81EohpZb',
+    MIN_EVENTS: 1,
+    MAX_TX_INSTRUCTIONS: 1,
+    CU_PRICE: 1,
+    PRIORITY_CU_LIMIT: 50000,
+    PRIORITY_QUEUE_LIMIT: 100,
+    PRIORITY_CU_PRICE: 100000,
+    DEBUG: false
+} as any;
 
-const cluster: 'mainnet' | 'testnet' | 'devnet' = CLUSTER as 'mainnet' | 'testnet' | 'devnet' || 'mainnet';
-const interval = parseInt(INTERVAL || '1000');
-const consumeEventsLimit = new BN(CONSUME_EVENTS_LIMIT || '19');
-const priorityMarkets = PRIORITY_MARKETS ? PRIORITY_MARKETS.split(',') : [];
-const priorityQueueLimit = parseInt(PRIORITY_QUEUE_LIMIT || '100');
-const cuPrice = parseInt(CU_PRICE || '0');
-const priorityCuPrice = parseInt(PRIORITY_CU_PRICE || '100000');
-const CuLimit = parseInt(PRIORITY_CU_LIMIT || '50000');
-const maxTxInstructions = parseInt(MAX_TX_INSTRUCTIONS || '1');
-const minEvents = parseInt(MIN_EVENTS || '1');
-const programId = new PublicKey(
-    PROGRAM_ID || cluster == 'mainnet'
-        ? 'opnb2LAfJYbRMAHHvqjCwQxanZn7ReEHp1k81EohpZb'
-        : 'opnb2LAfJYbRMAHHvqjCwQxanZn7ReEHp1k81EohpZb',
-);
-
-const walletFile = process.env.WALLET_PATH || os.homedir() + '/openbook-v2/ts/client/src/wallet.json';
-const payer = Keypair.fromSecretKey(
-    Uint8Array.from(JSON.parse(KEYPAIR || fs.readFileSync(walletFile, 'utf-8'))),
-);
-const wallet = new Wallet(payer);
-
-const defaultRpcUrls = {
-    'mainnet': 'https://api.mainnet-beta.solana.com',
-    'testnet': 'https://api.testnet.solana.com',
-    'devnet': 'https://api.devnet.solana.com',
-}
-const rpcUrl = RPC_URL ? RPC_URL : defaultRpcUrls[cluster];
-const connection = new Connection(rpcUrl, 'processed' as Commitment);
-
-Log.info('Starting OpenBook v2 Cranker');
-Log.info(`Loaded MARKETS: ${MARKETS}`);
-Log.info(`Loaded WALLET_PATH: ${WALLET_PATH}`);
-Log.info(`Loaded RPC_URL: ${RPC_URL}`);
-Log.info(`Loaded RPC_URL: ${RPC_URL}`);
-Log.info(`Loaded Wallet: ${payer.publicKey.toString()}`);
+const RPC_URL: string = config('RPC_URL');
+const WALLET_PATH: string = config('WALLET_PATH');
+const KEYPAIR: string = args.get('KEYPAIR', fs.readFileSync(WALLET_PATH, 'utf-8')); //TODO
+const MARKETS: string = config('MARKETS');
+const PRIORITY_MARKETS: string = config('PRIORITY_MARKETS');
+const MAX_TX_INSTRUCTIONS: number = parseInt(config('MAX_TX_INSTRUCTIONS'))
+const MIN_EVENTS: number = parseInt(config('MIN_EVENTS'));
+const PRIORITY_QUEUE_LIMIT: number = parseInt(config('PRIORITY_QUEUE_LIMIT'));
+const PRIORITY_CU_PRICE: number = parseInt(args.get('PRIORITY_CU_PRICE', DEFAULTS.PRIORITY_CU_PRICE))
+const INTERVAL: number = parseInt(config('INTERVAL'));
+const CU_PRICE: number = parseInt(config('CU_PRICE'));
+const PRIORITY_CU_LIMIT: number = parseInt(config('PRIORITY_CU_LIMIT'));
+const CONSUME_EVENTS_LIMIT: BN = new BN(config('CONSUME_EVENTS_LIMIT'));
+const PROGRAM_ID: PublicKey = new PublicKey(config('PROGRAM_ID'));
+const DEBUG: boolean = Boolean(parseInt(config('DEBUG')));
 
 async function run() {
+
+    const connection = new Connection(RPC_URL, 'processed' as Commitment);
+    const wallet = new Wallet(Keypair.fromSecretKey(Uint8Array.from(JSON.parse(KEYPAIR))));
+
+    Log.info('Starting OpenBook v2 Cranker');
+    if (DEBUG) Log.info('DEBUG ENABLED');
+    Log.info(`Loaded MARKETS: ${MARKETS}`);
+    Log.info(`Loaded WALLET_PATH: ${WALLET_PATH}`);
+    Log.info(`Loaded RPC_URL: ${RPC_URL}`);
+    Log.info(`Loaded RPC_URL: ${RPC_URL}`);
+    Log.info(`Loaded Wallet: ${wallet.payer.publicKey.toString()}`);
 
     let recentBlockhash: BlockhashWithExpiryBlockHeight = await connection.getLatestBlockhash('finalized');
     setInterval(() => {
@@ -82,9 +72,9 @@ async function run() {
     }, 1000);
 
     const provider = new AnchorProvider(connection, wallet, {})
-    const client = new OpenBookV2Client(provider, programId, {});
+    const client = new OpenBookV2Client(provider, PROGRAM_ID, {});
 
-    const marketPks = MARKETS ? MARKETS.split(',').map((m) => new PublicKey(m)) : [];
+    const marketPks = MARKETS ? MARKETS.split(',').map((m: string) => new PublicKey(m)) : [];
     if (!marketPks.length) throw new Error('No valid market pubkeys provided!');
 
     const markets = await client.program.account.market.fetchMultiple(marketPks);
@@ -101,7 +91,7 @@ async function run() {
 
             const contextSlot = eventHeapAccounts[0]!.context.slot;
             if (contextSlot < minContextSlot) {
-                Log.info(`already processed slot ${contextSlot}, skipping...`);
+                if (DEBUG) Log.info(`already processed slot ${contextSlot}, skipping...`);
                 await sleep(200);
                 continue;
             }
@@ -110,22 +100,22 @@ async function run() {
             for (let i = 0; i < eventHeapAccounts.length; i++) {
                 const eventHeap = eventHeapAccounts[i]!.data;
                 const heapSize = eventHeap.header.count;
-                if (heapSize < minEvents) continue;
+                if (heapSize < MIN_EVENTS) continue;
 
                 const market = markets[i]!;
                 const marketPk = marketPks[i]
                 const remainingAccounts = await getAccountsToConsume(client, market);
-                const consumeEventsIx = await client.consumeEventsIx(marketPk, market, consumeEventsLimit, remainingAccounts)
+                const consumeEventsIx = await client.consumeEventsIx(marketPk, market, CONSUME_EVENTS_LIMIT, remainingAccounts)
 
                 crankInstructionsQueue.push(consumeEventsIx);
 
                 //if the queue is large then add the priority fee
-                if (heapSize > priorityQueueLimit) {
+                if (heapSize > PRIORITY_QUEUE_LIMIT) {
                     instructionBumpMap.set(consumeEventsIx, 1);
                 }
 
                 //bump transaction fee if market address is included in PRIORITY_MARKETS env
-                if (priorityMarkets.includes(marketPk.toString())) {
+                if (PRIORITY_MARKETS.split(',').includes(marketPk.toString())) {
                     instructionBumpMap.set(consumeEventsIx, 1);
                 }
 
@@ -139,7 +129,7 @@ async function run() {
                 //chunk the instructions to ensure transactions are not too large
                 let chunkedCrankInstructions = chunk(
                     crankInstructionsQueue,
-                    maxTxInstructions,
+                    MAX_TX_INSTRUCTIONS,
                 );
 
                 chunkedCrankInstructions.forEach((transactionInstructions) => {
@@ -148,7 +138,7 @@ async function run() {
 
                     crankTransaction.add(
                         ComputeBudgetProgram.setComputeUnitLimit({
-                            units: CuLimit * maxTxInstructions,
+                            units: PRIORITY_CU_LIMIT * MAX_TX_INSTRUCTIONS,
                         }),
                     );
 
@@ -159,17 +149,17 @@ async function run() {
                             : null;
                     });
 
-                    if (shouldBumpFee || cuPrice) {
+                    if (shouldBumpFee || CU_PRICE) {
                         crankTransaction.add(
                             ComputeBudgetProgram.setComputeUnitPrice({
-                                microLamports: shouldBumpFee ? priorityCuPrice : cuPrice,
+                                microLamports: shouldBumpFee ? PRIORITY_CU_PRICE : CU_PRICE,
                             }),
                         );
                     }
 
                     crankTransaction.add(...transactionInstructions);
 
-                    crankTransaction.sign(payer);
+                    crankTransaction.sign(wallet.payer);
 
                     //send the transaction
                     connection
@@ -183,7 +173,7 @@ async function run() {
         } catch (error: any) {
             Log.error(`${error.stack} \n Error: ${error.message}`);
         }
-        await sleep(interval);
+        await sleep(INTERVAL);
     }
 }
 
@@ -222,6 +212,11 @@ function chunk<T>(array: T[], size: number): T[][] {
         chunkedArray.push(array.slice(i, i + size));
     }
     return chunkedArray;
+}
+
+//return value from .env or --args=123 or return the default value
+function config(key: string) {
+    return args.get(key, DEFAULTS[key])
 }
 
 run();
