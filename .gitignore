@@ -2,3 +2,4 @@ wallet.json
 .env
 node_modules
 dist
+.idea
