@@ -365,13 +365,6 @@
     rpc-websockets "^9.0.2"
     superstruct "^2.0.2"
 
-"@solpkr/args@^1.0.0":
-  version "1.22.0"
-  resolved "https://registry.yarnpkg.com/@solpkr/args/-/args-1.22.0.tgz#4dad060bce085e2f39b1490b89d4e5aaf83c4be3"
-  integrity sha512-NSmcOrVsUuEHBnI+nVpgT/y+kEi0zG8VkGXe7oz1RpnH/psejF+Jx2PH20b2b8xlmTxwIe+qOpX3+xRg+mnr4g==
-  dependencies:
-    dotenv "^16.3.1"
-
 "@solpkr/args@^1.23.0":
   version "1.23.0"
   resolved "https://registry.yarnpkg.com/@solpkr/args/-/args-1.23.0.tgz#221a9ccd2a2bffc17d335b83bfa59368b05c89d6"
@@ -379,12 +372,12 @@
   dependencies:
     dotenv "^16.3.1"
 
-"@solpkr/log@^1.31.0":
-  version "1.31.0"
-  resolved "https://registry.yarnpkg.com/@solpkr/log/-/log-1.31.0.tgz#c2ba4d6f7aba44ab3dd11126a5f18bb9d0d8f6af"
-  integrity sha512-yJKb6psGVMQx12Ru29tEM8A+FltIvAOd4THzueG8WbWCI1IIoDi1TfxJo6IQGnYQiyXa1Qi6rU3Pr6xsa7Wk6w==
+"@solpkr/log@^1.33.0":
+  version "1.33.0"
+  resolved "https://registry.yarnpkg.com/@solpkr/log/-/log-1.33.0.tgz#ea5613812fddafc5506f706aa5a905f390ed292a"
+  integrity sha512-0X8B9K5KKntUr6o1RB2NW9SCmOpLyNujtv1CpAljzyIdLcWv1ugOk3nU1N14VE6Cpqx/MjQENv93lmGwQHJufw==
   dependencies:
-    "@solpkr/args" "^1.0.0"
+    "@solpkr/args" "^1.23.0"
     chalk "^4.0.0"
     stacktrace-parser "^0.1.10"
     winston "^3.11.0"
