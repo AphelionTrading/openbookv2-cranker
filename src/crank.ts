@@ -1,24 +1,21 @@
 import 'dotenv/config';
-import * as fs from 'fs';
 import {
     Keypair,
     Commitment,
     Connection,
     PublicKey,
-    Transaction,
     ComputeBudgetProgram,
     BlockhashWithExpiryBlockHeight,
-    TransactionInstruction,
+    TransactionInstruction
 } from '@solana/web3.js';
 import BN from 'bn.js';
-import {FillEvent, OpenBookV2Client, OutEvent, sleep} from '@openbook-dex/openbook-v2'
-import {AnchorProvider, Wallet} from '@coral-xyz/anchor';
+import {Wallet} from '@coral-xyz/anchor';
 import Log from "@solpkr/log";
-import Args from "@solpkr/args";
+import chalk from "@solpkr/log/lib/chalk";
+import OpenBookCrank from "./OpenBookCrank";
+import {sleep, getKeyPair, config, generateMessageV0Transaction} from "./utils";
 
-const args = Args.load();
-
-const DEFAULTS = {
+export const DEFAULTS = {
     INTERVAL: 1000,
     WALLET_PATH: '~/openbook-v2/ts/client/src/wallet.json',
     RPC_URL: 'https://api.mainnet-beta.solana.com',
@@ -32,7 +29,7 @@ const DEFAULTS = {
     PRIORITY_CU_LIMIT: 50000,
     PRIORITY_QUEUE_LIMIT: 100,
     PRIORITY_CU_PRICE: 100000,
-    DEBUG: false
+    DEBUG: true
 } as any;
 
 const RPC_URL: string = config('RPC_URL');
@@ -51,18 +48,15 @@ const CONSUME_EVENTS_LIMIT: BN = new BN(config('CONSUME_EVENTS_LIMIT'));
 const PROGRAM_ID: PublicKey = new PublicKey(config('PROGRAM_ID'));
 const DEBUG: boolean = Boolean(parseInt(config('DEBUG')));
 
-async function run() {
+(async () => {
+    let minContextSlot = 0;
 
     const connection = new Connection(RPC_URL, 'processed' as Commitment);
     const wallet = new Wallet(Keypair.fromSecretKey(Uint8Array.from(JSON.parse(KEYPAIR))));
-
-    if (DEBUG) Log.info('DEBUG ENABLED');
-    Log.info('Starting OpenBook v2 Cranker');
-    Log.info(`Loaded MARKETS: ${MARKETS}`);
-    Log.info(`Loaded WALLET_PATH: ${WALLET_PATH}`);
-    Log.info(`Loaded RPC_URL: ${RPC_URL}`);
-    Log.info(`Loaded RPC_URL: ${RPC_URL}`);
-    Log.info(`Loaded Wallet: ${wallet.payer.publicKey.toString()}`);
+    const marketPks = MARKETS.split(',').map((m: string) => new PublicKey(m));
+    const priorityMarketPks = PRIORITY_MARKETS.split(',').map((m: string) => new PublicKey(m));
+    const openBookCrank = new OpenBookCrank(connection, wallet, PROGRAM_ID);
+    await openBookCrank.loadMarkets(marketPks);
 
     let recentBlockhash: BlockhashWithExpiryBlockHeight = await connection.getLatestBlockhash('finalized');
     setInterval(() => {
@@ -71,157 +65,96 @@ async function run() {
             .catch(e => Log.error(`Couldn't get blockhash: ${e.message}`))
     }, 1000);
 
-    const provider = new AnchorProvider(connection, wallet, {})
-    const client = new OpenBookV2Client(provider, PROGRAM_ID, {});
+    if (DEBUG) Log.info('DEBUG ENABLED');
+    Log.info('Starting OpenBook v2 Cranker');
+    Log.info(`Loaded RPC_URL: ${RPC_URL}`);
+    Log.info(`Loaded Wallet: ${wallet.payer.publicKey.toString()} from ${WALLET_PATH}`);
+    Log.info(`Loaded MARKETS: ${MARKETS}`);
+    Log.info(`Loaded first blockhash: ${recentBlockhash.blockhash}`);
 
-    const marketPks = MARKETS ? MARKETS.split(',').map((m: string) => new PublicKey(m)) : [];
-    if (!marketPks.length) throw new Error('No valid market pubkeys provided!');
+    const doCrank = async function () {
+        let instructionBumpMap: Map<TransactionInstruction, number> = new Map();
 
-    const markets = await client.program.account.market.fetchMultiple(marketPks);
-    const eventHeapPks = markets.map((m) => m!.eventHeap);
-
-    let minContextSlot = 0;
-
-    while (true) {
-        try {
-            let crankInstructionsQueue: TransactionInstruction[] = [];
-            let instructionBumpMap = new Map();
-
-            const eventHeapAccounts = await client.program.account.eventHeap.fetchMultipleAndContext(eventHeapPks);
-
-            const contextSlot = eventHeapAccounts[0]!.context.slot;
-            if (contextSlot < minContextSlot) {
-                if (DEBUG) Log.info(`already processed slot ${contextSlot}, skipping...`);
-                await sleep(200);
-                continue;
-            }
-            minContextSlot = contextSlot + 1;  //increase the minContextSlot to avoid processing the same slot twice
-
-            for (let i = 0; i < eventHeapAccounts.length; i++) {
-                const eventHeap = eventHeapAccounts[i]!.data;
-                const heapSize = eventHeap.header.count;
-                if (heapSize < MIN_EVENTS) continue;
-
-                const market = markets[i]!;
-                const marketPk = marketPks[i]
-                const remainingAccounts = await getAccountsToConsume(client, market);
-                const consumeEventsIx = await client.consumeEventsIx(marketPk, market, CONSUME_EVENTS_LIMIT, remainingAccounts)
-
-                crankInstructionsQueue.push(consumeEventsIx);
-
-                //if the queue is large then add the priority fee
-                if (heapSize > PRIORITY_QUEUE_LIMIT) {
-                    instructionBumpMap.set(consumeEventsIx, 1);
-                }
-
-                //bump transaction fee if market address is included in PRIORITY_MARKETS env
-                if (PRIORITY_MARKETS.split(',').includes(marketPk.toString())) {
-                    instructionBumpMap.set(consumeEventsIx, 1);
-                }
-
-                Log.info(
-                    `market ${marketPk} creating consume events for ${heapSize} events (${remainingAccounts.length} accounts)`,
-                );
-            }
-
-            //send the crank transaction if there are markets that need cranked
-            if (crankInstructionsQueue.length > 0) {
-                //chunk the instructions to ensure transactions are not too large
-                let chunkedCrankInstructions = chunk(
-                    crankInstructionsQueue,
-                    MAX_TX_INSTRUCTIONS,
-                );
-
-                chunkedCrankInstructions.forEach((transactionInstructions) => {
-                    let shouldBumpFee = false;
-                    let crankTransaction = new Transaction({...recentBlockhash});
-
-                    crankTransaction.add(
-                        ComputeBudgetProgram.setComputeUnitLimit({
-                            units: PRIORITY_CU_LIMIT * MAX_TX_INSTRUCTIONS,
-                        }),
-                    );
-
-                    transactionInstructions.forEach(function (crankInstruction) {
-                        //check the instruction for flag to bump fee
-                        instructionBumpMap.get(crankInstruction)
-                            ? (shouldBumpFee = true)
-                            : null;
-                    });
-
-                    if (shouldBumpFee || CU_PRICE) {
-                        crankTransaction.add(
-                            ComputeBudgetProgram.setComputeUnitPrice({
-                                microLamports: shouldBumpFee ? PRIORITY_CU_PRICE : CU_PRICE,
-                            }),
-                        );
-                    }
-
-                    crankTransaction.add(...transactionInstructions);
-
-                    crankTransaction.sign(wallet.payer);
-
-                    //send the transaction
-                    connection
-                        .sendRawTransaction(crankTransaction.serialize(), {
-                            skipPreflight: true,
-                            maxRetries: 2,
-                        })
-                        .then((txId) => Log.info(`Cranked ${transactionInstructions.length} market(s): ${txId}`));
-                });
-            }
-        } catch (error: any) {
-            Log.error(`${error.stack} \n Error: ${error.message}`);
+        //get the event heap accounts and ensure we have not already processed this slot.
+        const eventHeapAccounts = await openBookCrank.getHeapAccounts();
+        const contextSlot = eventHeapAccounts[0]!.context.slot;
+        if (contextSlot < minContextSlot) {
+            if (DEBUG) Log.info(`already processed slot ${contextSlot}, skipping...`);
+            return;
         }
+        minContextSlot = contextSlot + 1;
+
+        //generate the instructions for cranking
+        let crankInstructions = [];
+        for (const heapAccount of eventHeapAccounts) {
+            const index = eventHeapAccounts.indexOf(heapAccount);
+            if (!heapAccount) continue;
+
+            const heapSize = heapAccount.data.header.count;
+            if (heapSize < MIN_EVENTS) continue;
+
+            const marketAddress: PublicKey = marketPks[index];
+            const {
+                remainingAccounts,
+                consumeEventsIx
+            } = await openBookCrank.getEventsConsumeIx(marketAddress, CONSUME_EVENTS_LIMIT);
+
+            if (heapSize > PRIORITY_QUEUE_LIMIT) instructionBumpMap.set(consumeEventsIx, 1);
+            if (priorityMarketPks.some(pk => pk.equals(marketAddress))) instructionBumpMap.set(consumeEventsIx, 1);
+
+            crankInstructions.push(consumeEventsIx);
+
+            Log.info(
+                `Market: ${marketPks[index]}' ` +
+                `Creating consume events for ${heapSize} events ` +
+                `Involving ${remainingAccounts.length} accounts.`
+            );
+        }
+
+        //return early when there is nothing to crank
+        if (crankInstructions.length === 0) return;
+
+        let instructions: TransactionInstruction[] = [];
+        let numInstructionsAdded = 0;
+        let shouldBumpFee = false;
+        for (const crankInstruction of crankInstructions) {
+            if (numInstructionsAdded >= MAX_TX_INSTRUCTIONS) break;
+
+            //check if we would exceed the max transaction size (safe estimate of 25 accounts)
+            if (new Set([
+                ...instructions.flatMap(instr => instr.keys.map(key => key.pubkey.toString())),
+                ...crankInstruction.keys.map(key => key.pubkey.toString())
+            ]).size > 25) {
+                Log.warn('Adding the instruction would exceed limit for number of accounts');
+                break;
+            }
+
+            if (instructionBumpMap.has(crankInstruction)) shouldBumpFee = true;
+            instructions.push(crankInstruction);
+            numInstructionsAdded++;
+        }
+
+        if (!(instructions.length > 0)) throw new Error('Instructions are empty!');
+
+        instructions.unshift(ComputeBudgetProgram.setComputeUnitLimit({
+            units: PRIORITY_CU_LIMIT * MAX_TX_INSTRUCTIONS,
+        }));
+
+        //add the fee on either CU_PRICE or PRIORITY_CU_PRICE depending on shouldBumpFee
+        instructions.unshift(ComputeBudgetProgram.setComputeUnitPrice({
+            microLamports: shouldBumpFee ? PRIORITY_CU_PRICE : CU_PRICE,
+        }));
+
+        const transaction = generateMessageV0Transaction(recentBlockhash.blockhash, instructions, wallet.payer);
+        const txId = await connection.sendRawTransaction(transaction.serialize(), {skipPreflight: true});
+        Log.info(chalk.cyan(`Cranked ${numInstructionsAdded} market(s): ${txId}`));
+    }
+
+    //run in a loop,log any errors but don't throw
+    // noinspection InfiniteLoopJS
+    while (true) {
+        await doCrank().catch((error: any) => Log.error(`${error.stack}`));
         await sleep(INTERVAL);
     }
-}
 
-//this is a modified version of client.getAccountsToConsume which does deduplication on the accounts returned
-async function getAccountsToConsume(client: OpenBookV2Client, market: any) {
-    let accounts: PublicKey[] = [];
-    const eventHeap = await client.deserializeEventHeapAccount(market.eventHeap);
-    if (eventHeap != null) {
-        for (const node of eventHeap.nodes) {
-            if (node.event.eventType === 0) {
-                const fillEvent: FillEvent = client.program.coder.types.decode(
-                    'FillEvent',
-                    Buffer.from([0, ...node.event.padding]),
-                );
-                accounts = accounts
-                    .filter((a) => a !== fillEvent.maker)
-                    .concat([fillEvent.maker]);
-            } else {
-                const outEvent: OutEvent = client.program.coder.types.decode(
-                    'OutEvent',
-                    Buffer.from([0, ...node.event.padding]),
-                );
-                accounts = accounts
-                    .filter((a) => a !== outEvent.owner)
-                    .concat([outEvent.owner]);
-            }
-        }
-    }
-    const uniqueAccountStrings = new Set(accounts.map(account => account.toString()));
-    return Array.from(uniqueAccountStrings).map(accountString => new PublicKey(accountString));
-}
-
-function chunk<T>(array: T[], size: number): T[][] {
-    const chunkedArray: T[][] = [];
-    for (let i = 0; i < array.length; i += size) {
-        chunkedArray.push(array.slice(i, i + size));
-    }
-    return chunkedArray;
-}
-
-//return value from .env or --args=123 or return the default value
-function config(key: string) {
-    return args.get(key, DEFAULTS[key])
-}
-
-function getKeyPair(walletPath: string) {
-    const keypair = args.get('KEYPAIR', false);
-    return keypair ? keypair : fs.readFileSync(walletPath, 'utf-8');
-}
-
-run();
+})();
