@@ -111,43 +111,52 @@ const DEBUG: boolean = Boolean(parseInt(config('DEBUG')));
             );
         }
 
-        //return early when there is nothing to crank
-        if (crankInstructions.length === 0) return;
+        //send each transaction until crankInstructions are empty
+        while (crankInstructions.length > 0) {
 
-        let instructions: TransactionInstruction[] = [];
-        let numInstructionsAdded = 0;
-        let shouldBumpFee = false;
-        for (const crankInstruction of crankInstructions) {
-            if (numInstructionsAdded >= MAX_TX_INSTRUCTIONS) break;
+            let instructions: TransactionInstruction[] = [];
+            let numInstructionsAdded = 0;
+            let shouldBumpFee = false;
 
-            //check if we would exceed the max transaction size (safe estimate of 25 accounts)
-            if (new Set([
-                ...instructions.flatMap(instr => instr.keys.map(key => key.pubkey.toString())),
-                ...crankInstruction.keys.map(key => key.pubkey.toString())
-            ]).size > 25) {
-                Log.warn('Adding the instruction would exceed limit for number of accounts');
-                break;
+            for (const crankInstruction of crankInstructions) {
+                if (numInstructionsAdded >= MAX_TX_INSTRUCTIONS) break;
+
+                //check if we would exceed the max transaction size (safe estimate of 25 accounts)
+                if (new Set([
+                    ...instructions.flatMap(instr => instr.keys.map(key => key.pubkey.toString())),
+                    ...crankInstruction.keys.map(key => key.pubkey.toString())
+                ]).size > 25) {
+                    Log.warn('Adding the instruction would exceed limit for number of accounts');
+                    break;
+                }
+
+                if (instructionBumpMap.has(crankInstruction)) shouldBumpFee = true;
+                instructions.push(crankInstruction);
+                numInstructionsAdded++;
             }
 
-            if (instructionBumpMap.has(crankInstruction)) shouldBumpFee = true;
-            instructions.push(crankInstruction);
-            numInstructionsAdded++;
+            //remove the added instructions from crankInstructions
+            crankInstructions = crankInstructions.filter(crankInstruction =>
+                !instructions.includes(crankInstruction)
+            );
+
+            if (!(instructions.length > 0)) throw new Error('Instructions are empty!');
+
+            instructions.unshift(ComputeBudgetProgram.setComputeUnitLimit({
+                units: PRIORITY_CU_LIMIT * MAX_TX_INSTRUCTIONS,
+            }));
+
+            //add the fee on either CU_PRICE or PRIORITY_CU_PRICE depending on shouldBumpFee
+            instructions.unshift(ComputeBudgetProgram.setComputeUnitPrice({
+                microLamports: shouldBumpFee ? PRIORITY_CU_PRICE : CU_PRICE,
+            }));
+
+            const transaction = generateMessageV0Transaction(recentBlockhash.blockhash, instructions, wallet.payer);
+            const txId = await connection.sendRawTransaction(transaction.serialize(), {skipPreflight: true});
+            Log.info(chalk.cyan(`Cranked ${numInstructionsAdded} market(s): ${txId}`));
+
         }
 
-        if (!(instructions.length > 0)) throw new Error('Instructions are empty!');
-
-        instructions.unshift(ComputeBudgetProgram.setComputeUnitLimit({
-            units: PRIORITY_CU_LIMIT * MAX_TX_INSTRUCTIONS,
-        }));
-
-        //add the fee on either CU_PRICE or PRIORITY_CU_PRICE depending on shouldBumpFee
-        instructions.unshift(ComputeBudgetProgram.setComputeUnitPrice({
-            microLamports: shouldBumpFee ? PRIORITY_CU_PRICE : CU_PRICE,
-        }));
-
-        const transaction = generateMessageV0Transaction(recentBlockhash.blockhash, instructions, wallet.payer);
-        const txId = await connection.sendRawTransaction(transaction.serialize(), {skipPreflight: true});
-        Log.info(chalk.cyan(`Cranked ${numInstructionsAdded} market(s): ${txId}`));
     }
 
     //run in a loop,log any errors but don't throw
