@@ -143,7 +143,7 @@ const DEBUG: boolean = Boolean(parseInt(config('DEBUG')));
             if (!(instructions.length > 0)) throw new Error('Instructions are empty!');
 
             instructions.unshift(ComputeBudgetProgram.setComputeUnitLimit({
-                units: PRIORITY_CU_LIMIT * MAX_TX_INSTRUCTIONS,
+                units: PRIORITY_CU_LIMIT * instructions.length,
             }));
 
             //add the fee on either CU_PRICE or PRIORITY_CU_PRICE depending on shouldBumpFee
