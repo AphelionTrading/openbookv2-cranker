@@ -1,6 +1,6 @@
 {
   "name": "obv2-crank-script",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "description": "Standalone script for Openbook v2 Crank",
   "main": "dist/crank.js",
   "scripts": {
