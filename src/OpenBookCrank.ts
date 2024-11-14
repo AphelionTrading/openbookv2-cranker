@@ -23,7 +23,10 @@ export default class OpenBookCrank {
     public async loadMarkets(marketPks: PublicKey[]) {
         this.marketPks = marketPks;
         this.markets = await this.openBookV2Client.program.account.market.fetchMultiple(marketPks) as [];
-        this.eventHeapPks = this.markets.map((m: any) => m!.eventHeap);
+        this.eventHeapPks = this.markets.map((m: any) => {
+            if (!m || !m.eventHeap) throw new Error("eventHeap missing, are you sure you passed the correct accounts?");
+            return m.eventHeap;
+        });
 
         for (let marketPk of marketPks) {
             this.pubkey2AccountMap.set(marketPk.toString(), this.markets[marketPks.indexOf(marketPk)]);
