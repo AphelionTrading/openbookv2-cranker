@@ -372,6 +372,13 @@
   dependencies:
     dotenv "^16.3.1"
 
+"@solpkr/args@^1.26.0":
+  version "1.26.0"
+  resolved "https://registry.yarnpkg.com/@solpkr/args/-/args-1.26.0.tgz#581092eb5146892b192151a2344dab7525b2d238"
+  integrity sha512-raN5QQfKd2cxFey/1c6GL8mNLVyPJllkWyWJwh3c/TXOH9n81DqXIKu2rqbtxiCd6kNBS2ApN3ttHYPcg4pKkw==
+  dependencies:
+    dotenv "^16.3.1"
+
 "@solpkr/log@^1.33.0":
   version "1.33.0"
   resolved "https://registry.yarnpkg.com/@solpkr/log/-/log-1.33.0.tgz#ea5613812fddafc5506f706aa5a905f390ed292a"
