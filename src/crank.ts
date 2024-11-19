@@ -14,6 +14,8 @@ import Log from "@solpkr/log";
 import chalk from "@solpkr/log/lib/chalk";
 import OpenBookCrank from "./OpenBookCrank";
 import {sleep, getKeyPair, config, generateMessageV0Transaction} from "./utils";
+import Args from "@solpkr/args";
+import Influx from "@solpkr/influx";
 
 export const DEFAULTS = {
     INTERVAL: 1000,
@@ -47,6 +49,15 @@ const PRIORITY_CU_LIMIT: number = parseInt(config('PRIORITY_CU_LIMIT'));
 const CONSUME_EVENTS_LIMIT: BN = new BN(config('CONSUME_EVENTS_LIMIT'));
 const PROGRAM_ID: PublicKey = new PublicKey(config('PROGRAM_ID'));
 const DEBUG: boolean = Boolean(parseInt(config('DEBUG')));
+const args = Args.load();
+
+let influx: null | Influx;
+if (args.get('influxdb-host', false)) {
+    influx = new Influx(
+        args.get('influxdb-host', '127.0.0.1'),
+        args.get('influxdb-database', 'ob2crank'),
+    );
+}
 
 (async () => {
     let minContextSlot = 0;
@@ -84,16 +95,31 @@ const DEBUG: boolean = Boolean(parseInt(config('DEBUG')));
         }
         minContextSlot = contextSlot + 1;
 
-        //generate the instructions for cranking
         let crankInstructions = [];
-        for (const heapAccount of eventHeapAccounts) {
-            const index = eventHeapAccounts.indexOf(heapAccount);
-            if (!heapAccount) continue;
+        let influxPoints = [];
 
-            const heapSize = heapAccount.data.header.count;
+        for (const heapAccount of eventHeapAccounts.filter(Boolean)) {
+            if(!heapAccount) throw new Error('Invalid Heap Account');
+
+            const index = eventHeapAccounts.indexOf(heapAccount);
+            const heapSize = heapAccount.data.header.count
+            const marketAddress: PublicKey = marketPks[index];
+
+            influxPoints.push({
+                measurement: 'ob2-crank-queue',
+                tags: {
+                    address: marketAddress.toString(),
+                },
+                fields: {
+                    size: heapSize,
+                }
+            });
+1
+            if(args.get('queue-only', false)) continue; //don't crank if --queue-only is passed
+
+            if (!heapAccount) continue;
             if (heapSize < MIN_EVENTS) continue;
 
-            const marketAddress: PublicKey = marketPks[index];
             const {
                 remainingAccounts,
                 consumeEventsIx
@@ -109,6 +135,10 @@ const DEBUG: boolean = Boolean(parseInt(config('DEBUG')));
                 `Creating consume events for ${heapSize} events ` +
                 `Involving ${remainingAccounts.length} accounts.`
             );
+        }
+
+        if (influx && influxPoints.length) {
+            influx.insertBatchData(influxPoints).catch((error: any) => Log.error(error.message));
         }
 
         //send each transaction until crankInstructions are empty
