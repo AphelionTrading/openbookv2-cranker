@@ -1,6 +1,6 @@
 {
   "name": "obv2-crank-script",
-  "version": "1.5.0",
+  "version": "1.7.0",
   "description": "Standalone script for Openbook v2 Crank",
   "main": "dist/crank.js",
   "scripts": {
@@ -15,7 +15,7 @@
     "@coral-xyz/anchor": "^0.29.0",
     "@openbook-dex/openbook-v2": "^0.2.10",
     "@solana/web3.js": "^1.77.3",
-    "@solpkr/args": "^1.23.0",
+    "@solpkr/args": "^1.26.0",
     "@solpkr/influx": "^1.5.0",
     "@solpkr/log": "^1.33.0",
     "bn.js": "^5.2.0",
